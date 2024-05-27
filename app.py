@@ -259,11 +259,11 @@ if page == "ランキング":
     st.divider()
     st.header("ニュース用")
     tsv = news_ranking.to_csv(columns=["順位","選手名", "選考順位", "合計pt","結果"],index=False,sep="\t").encode("utf-8")
-    st.button(
-        label="ニュース用にコピーする",
-        key="cp_df",
-        on_click=news_ranking.to_clipboard(columns=["順位","選手名", "選考順位", "合計pt","結果"],index=False)
-    )
+    # st.button(
+    #     label="ニュース用にコピーする",
+    #     key="cp_df",
+    #     on_click=news_ranking.to_clipboard(columns=["順位","選手名", "選考順位", "合計pt","結果"],index=False)
+    # )
     st.dataframe(
         data=news_ranking[["順位","選手名", "選考順位", "合計pt","結果"]],
         hide_index=True,
