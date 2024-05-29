@@ -67,6 +67,7 @@ def init_players():
         dtype="str"
     )
 
+
 # フラグの初期化
 def init_flags():
     st.session_state["flags"] = True
@@ -83,6 +84,13 @@ def init_active_race():
 def init_input_scores():
     st.session_state["input_scores"] = pd.DataFrame([[None for x in range(4)] for y in range(9)])
     st.session_state["new_scores"] = pd.DataFrame([[None for x in range(4)] for y in range(9)])
+
+def init_input_election():
+    st.session_state["input_election"] = pd.DataFrame(
+        data=[["" for x in range(2)] for y in range(200)],
+        columns=["player_name","election_rank"],
+        dtype="str"
+    )
 
 # 選択レースの更新
 def update_active_race():
@@ -157,16 +165,21 @@ def update_scores():
                 continue
             chaku = row["0"]
             _player_id = re.match(r"https://keirin.netkeiba.com/db/profile/\?id=(\d+|[a-z]+)",row["3"]).group(1)
-            if st.session_state["pattern"] == "dream" or st.session_state["pattern"] == "orion":
-                st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"first_round"] \
-                = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
+            if _player_id not in st.session_state["df_scores"]["player_id"]:
+                st.toast(f"選手ID{_player_id}が見つかりませんでした",icon="👎")
+                continue
             else:
-                st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),st.session_state["pattern"]] \
-                = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
+                if st.session_state["pattern"] == "dream" or st.session_state["pattern"] == "orion":
+                    st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"first_round"] \
+                    = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
+                else:
+                    st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),st.session_state["pattern"]] \
+                    = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
         st.toast("レース成績を読み込みました。",icon="👍")
     except:
         st.toast("レース成績読み込み失敗！コピペ失敗してるかも",icon="👎")
     finally:
+        st.session_state["result"].clear()
         init_input_scores()
 
 # 選手IDと選手名の更新
@@ -174,6 +187,26 @@ def update_plist():
     st.session_state["input_players"] = input_players
     st.session_state["input_players"].replace(r"https://keirin.netkeiba.com/db/profile/\?id=(\d+|[a-z]+)",r"\1",inplace=True,regex=True)
     st.session_state["dl_pl_btn"] = False
+
+def update_election():
+    try:
+        st.session_state["input_election"] = input_election
+        for index, row in st.session_state["input_election"].iterrows():
+            if row["player_name"] not in st.session_state["df_scores"]["player_name"].values:
+                pass
+            else:
+                st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_name"] == str(row["player_name"]),"election_rank"] = int(row["election_rank"])
+        st.toast("選考順位を読み込みました。",icon="👍")
+    except:
+        st.toast("選考順位更新失敗！入力形式に間違いがないか確認してください",icon="👎")
+    finally:
+        st.session_state["election"].clear()
+        init_input_election()
+        # 重複行を消す
+        st.session_state["df_scores"] = st.session_state["df_scores"].drop_duplicates()
+        # 選手IDがないデータはランキングに不要なので消す
+        st.session_state["df_scores"] = st.session_state["df_scores"][st.session_state["df_scores"]["player_id"] != ""]
+
 
 # 入力エリアから選手リストへ情報更新
 def convert_plist():
@@ -212,13 +245,16 @@ if "flags" not in st.session_state:
 if "input_scores" not in st.session_state:
     init_input_scores()
 
+if "input_election" not in st.session_state:
+    init_input_election()
+
 # ページごとの処理
 if page == "ランキング":
     # ランキング表示と最新ランキングデータをダウンロードできる
     st.title(f"""{st.session_state["point_definition"][st.session_state["active_race"]]["title_jp"]} ランキング""")
 
     # ダウンロード用CSVの設定
-    csv = st.session_state["df_scores"].to_csv(columns=["player_id","player_name","election_rank","first_round","second_round"],index=False).encode("utf-8")
+    csv = st.session_state["df_scores"].to_csv(columns=["player_id","player_name","election_rank","first_round","second_round"],index=False).encode("shift-jis")
     st.download_button(
         label="選手リストをダウンロードする",
         data=csv,
@@ -259,15 +295,35 @@ if page == "ランキング":
     st.divider()
     st.header("ニュース用")
     tsv = news_ranking.to_csv(columns=["順位","選手名", "選考順位", "合計pt","結果"],index=False,sep="\t").encode("utf-8")
-    # st.button(
-    #     label="ニュース用にコピーする",
-    #     key="cp_df",
-    #     on_click=news_ranking.to_clipboard(columns=["順位","選手名", "選考順位", "合計pt","結果"],index=False)
-    # )
-    st.dataframe(
-        data=news_ranking[["順位","選手名", "選考順位", "合計pt","結果"]],
-        hide_index=True,
-        use_container_width=True
+    def format_left(value):
+        return f"|{value}"
+    def format_right(value):
+        return f"|{value}|"
+    
+    formatters = {
+        "|順位":format_left,
+        "|選手名":format_left,
+        "|選考<br>順位":format_left,
+        "|合計<br>pt":format_left,
+        "|結果|":format_right,
+    }
+    _df = news_ranking[["順位","選手名", "選考順位", "合計pt","結果"]].rename(
+        columns={
+            "順位":"|順位",
+            "選手名":"|選手名",
+            "選考順位":"|選考<br>順位",
+            "合計pt":"|合計<br>pt",
+            "結果":"|結果|"
+            },
+        )
+    _df_header = pd.DataFrame(
+        data=[[" :-: "," :-: "," :-: "," :-: "," :-: "],],
+        columns=["|順位","|選手名", "|選考<br>順位", "|合計<br>pt","|結果|"],
+        )
+    df_news = pd.concat([_df_header,_df])
+    st.code(
+        body=df_news.to_string(index=False,formatters=formatters).replace(" ",""),
+        language="markdown",
     )
     
 
@@ -294,6 +350,15 @@ elif page == "選手リスト管理":
         disabled=st.session_state.get("dl_pl_btn",True),
         key="cvt"
     )
+    st.divider()
+    st.header("選考順位を一括登録する")
+    input_election = st.data_editor(
+        data=st.session_state["input_election"],
+        key="election",
+        num_rows="fixed",
+    )
+    st.button("選考順位を一括登録する",on_click=update_election,key="xxx")
+
 
 elif page == "成績入力":
     st.title("成績入力")
