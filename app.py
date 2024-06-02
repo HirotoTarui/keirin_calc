@@ -15,27 +15,27 @@ def init_point_definition():
         "takamatsunomiya":{
             "title_jp":"高松宮記念杯競輪",
             "points":{
-                "first_round_east":[10,9,8,7,6,5,4,3,2,1,0,0],
-                "second_round_east":[13,11,9,7,6,5,4,3,2,1,0,0],
-                "first_round_west":[10,9,8,7,6,5,4,3,2,1,0,0],
-                "second_round_west":[13,11,9,7,6,5,4,3,2,1,0,0],
+                "一次予選_東_1走目":[10,9,8,7,6,5,4,3,2,1,0,0],
+                "一次予選_東_2走目":[13,11,9,7,6,5,4,3,2,1,0,0],
+                "一次予選_西_1走目":[10,9,8,7,6,5,4,3,2,1,0,0],
+                "一次予選_西_2走目":[13,11,9,7,6,5,4,3,2,1,0,0],
             },
             "caution":0
         },
         "all_star":{
             "title_jp":"オールスター競輪",
             "points":{
-                "first_round":[10,9,8,7,6,5,4,3,2,1,0,0],
-                "second_round":[13,11,10,9,8,7,6,5,4,1,0,0],
-                "dream":[18,17,16,15,14,13,12,11,10,8,0,0],
-                "orion":[15,14,13,12,11,10,9,8,7,5,0,0],
+                "一次予選_1走目":[10,9,8,7,6,5,4,3,2,1,0,0],
+                "一次予選_2走目":[13,11,10,9,8,7,6,5,4,1,0,0],
+                "ドリーム":[18,17,16,15,14,13,12,11,10,8,0,0],
+                "オリオン賞":[15,14,13,12,11,10,9,8,7,5,0,0],
             },
         },
         "keirinsai":{
             "title_jp":"競輪祭",
             "points":{
-                "first_round":[10,9,8,7,6,5,4,3,2,1,0,0],
-                "second_round":[13,11,9,7,6,5,4,3,2,1,0,0],
+                "一次予選_1走目":[10,9,8,7,6,5,4,3,2,1,0,0],
+                "一次予選_2走目":[13,11,9,7,6,5,4,3,2,1,0,0],
             },
         },
     }
@@ -166,7 +166,7 @@ def update_players():
     except:
         st.toast("更新失敗！CSVファイルの形式が正しくありません。最低でもplayer_idの列が必要です。",icon="👎")
     finally:
-        st.session_state["upfile"] is None
+        st.session_state["upfile"] = None
         init_flags()
 
 # 成績更新
@@ -183,9 +183,9 @@ def update_scores():
                 continue
             else: #高松宮記念だけ東西で処理分ける
                 if st.session_state["active_race"] == "takamatsunomiya":
-                    if st.session_state["pattern"] == "first_round_east" or st.session_state["pattern"] == "second_round_east":
+                    if st.session_state["pattern"] == "一次予選_東_1走目" or st.session_state["pattern"] == "一次予選_東_2走目":
                         st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"shozoku"] = 1
-                        if st.session_state["pattern"] == "first_round_east":
+                        if st.session_state["pattern"] == "一次予選_東_1走目":
                             st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"first_round"] \
                             = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
                         else:
@@ -193,7 +193,7 @@ def update_scores():
                             = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
                     else:
                         st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"shozoku"] = 2
-                        if st.session_state["pattern"] == "first_round_west":
+                        if st.session_state["pattern"] == "一次予選_西_1走目":
                             st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"first_round"] \
                             = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
                         else:
@@ -298,13 +298,6 @@ if page == "ランキング":
 
         # ダウンロード用CSVの設定
         csv = st.session_state["df_scores"].to_csv(columns=["player_id","player_name","shozoku","election_rank","first_round","second_round"],index=False).encode("cp932")
-        st.download_button(
-            label="選手リストをダウンロードする",
-            data=csv,
-            file_name=f"""{st.session_state["point_definition"][st.session_state["active_race"]]["title_jp"]} ランキング.csv""",
-            mime="text/csv",
-            key="dl_csv"
-        )
         st.session_state["df_scores"]["total_score"] = st.session_state["df_scores"]["first_round"] + st.session_state["df_scores"]["second_round"]
         st.session_state["df_scores"]["image"] = st.session_state["df_scores"]["player_id"].map(lambda x:f"https://cdn.netkeiba.com/keirin/common/img/players/player_{x}.jpg")
 
@@ -383,6 +376,13 @@ if page == "ランキング":
         ###
         ### ここから表示部分
         ###
+        st.download_button(
+            label="選手リストをダウンロードする",
+            data=csv,
+            file_name=f"""{st.session_state["point_definition"][st.session_state["active_race"]]["title_jp"]} ランキング.csv""",
+            mime="text/csv",
+            key="dl_csv"
+        )
         st.divider()
         st.write("東")
         st.dataframe(
@@ -459,8 +459,6 @@ if page == "ランキング":
                 },
             )
         news_ranking["結果"] = ""
-
-        tsv = news_ranking.to_csv(columns=["順位","選手名", "選考順位", "合計pt","結果"],index=False,sep="\t").encode("utf-8")
 
         def format_left(value):
             return f"|{value}"
