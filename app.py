@@ -20,7 +20,16 @@ def init_point_definition():
                 "一次予選_西_1走目":[10,9,8,7,6,5,4,3,2,1,0,0],
                 "一次予選_西_2走目":[13,11,9,7,6,5,4,3,2,1,0,0],
             },
-            "caution":0
+            "qualifier_east":{
+                "青龍":[0,9],
+                "二予":[9,36],
+                "選抜":[36,54],
+            },
+            "qualifier_west":{
+                "白虎":[0,9],
+                "二予":[9,63],
+                "選抜":[36,54],
+            },
         },
         "all_star":{
             "title_jp":"オールスター競輪",
@@ -30,12 +39,25 @@ def init_point_definition():
                 "ドリーム":[18,17,16,15,14,13,12,11,10,8,0,0],
                 "オリオン賞":[15,14,13,12,11,10,9,8,7,5,0,0],
             },
+            "qualifier":{
+                "SS":[0,9],
+                "二予":[9,63],
+                "選抜1":[63,81],
+                "選抜2":[81,99],
+                "一般":[99,135],
+            },
         },
         "keirinsai":{
             "title_jp":"競輪祭",
             "points":{
                 "一次予選_1走目":[10,9,8,7,6,5,4,3,2,1,0,0],
                 "一次予選_2走目":[13,11,9,7,6,5,4,3,2,1,0,0],
+            },
+            "qualifier":{
+                "DR":[0,9],
+                "二予A":[9,36],
+                "二予B":[36,63],
+                "選抜":[63,108],
             },
         },
     }
@@ -63,6 +85,7 @@ def init_scores():
         "election_rank": pd.Series(dtype="int"),
         "first_round": pd.Series(dtype="int"),
         "second_round": pd.Series(dtype="int"),
+        "dq": pd.Series(dtype="int"),
     })
 
 
@@ -85,14 +108,14 @@ def init_input_scores():
 
 def init_input_election():
     st.session_state["input_election"] = pd.DataFrame(
-        data=[["" for x in range(2)] for y in range(200)],
+        data=[["" for x in range(2)] for y in range(500)],
         columns=["player_name","election_rank"],
         dtype="str"
     )
 
 def init_input_players():
     st.session_state["input_players"] = pd.DataFrame(
-        data=[["" for x in range(2)] for y in range(200)],
+        data=[["" for x in range(2)] for y in range(500)],
         columns=["player_name","player_id"],
         dtype="str"
     )
@@ -139,7 +162,8 @@ def update_players():
                 "first_round":"int",
                 "second_round":"int",
                 "election_rank":"int",
-                "shozoku":"int"
+                "shozoku":"int",
+                "dq":"int",
                 },
             encoding="cp932"
             )
@@ -150,23 +174,30 @@ def update_players():
             st.session_state["df_scores"]["second_round"] = temp_df["second_round"]
             st.session_state["df_scores"]["election_rank"] = temp_df["election_rank"]
             st.session_state["df_scores"]["shozoku"] = temp_df["shozoku"]
+            st.session_state["df_scores"]["dq"] = temp_df["dq"]
             st.session_state["df_scores"] = st.session_state["df_scores"].fillna({
                 "player_name":"",
                 "first_round":0,
                 "second_round":0,
                 "election_rank":0,
                 "shozoku":0,
+                "dq":0,
                 }).astype({
                 "first_round":"int64",
                 "second_round":"int64",
                 "election_rank":"int64",
                 "shozoku":"int64",
+                "dq":"int64",
             })
             st.toast("選手リストを読み込みました。",icon="👍")
     except:
-        st.toast("更新失敗！CSVファイルの形式が正しくありません。最低でもplayer_idの列が必要です。",icon="👎")
+        st.toast("更新失敗！CSVファイルの形式が正しくありません。",icon="👎")
     finally:
         st.session_state["upfile"] = None
+        # 重複行を消す
+        st.session_state["df_scores"] = st.session_state["df_scores"].drop_duplicates(keep="first")
+        # 選手IDがないデータはランキングに不要なので消す
+        st.session_state["df_scores"] = st.session_state["df_scores"][st.session_state["df_scores"]["player_id"] != ""]
         init_flags()
 
 # 成績更新
@@ -177,46 +208,39 @@ def update_scores():
             if row["0"] == None:
                 continue
             chaku = row["0"]
-            _player_id = re.match(r"https://keirin.netkeiba.com/db/profile/\?id=(\d+|[a-z]+)",row["3"]).group(1)
-            if _player_id not in st.session_state["df_scores"]["player_id"].values:
-                st.toast(f"選手ID{_player_id}が見つかりませんでした",icon="👎")
-                continue
-            else: #高松宮記念だけ東西で処理分ける
-                if st.session_state["active_race"] == "takamatsunomiya":
-                    if st.session_state["pattern"] == "一次予選_東_1走目" or st.session_state["pattern"] == "一次予選_東_2走目":
-                        st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"shozoku"] = 1
-                        if st.session_state["pattern"] == "一次予選_東_1走目":
-                            st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"first_round"] \
-                            = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
-                        else:
-                            st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"second_round"] \
-                            = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
-                    else:
-                        st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"shozoku"] = 2
-                        if st.session_state["pattern"] == "一次予選_西_1走目":
-                            st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"first_round"] \
-                            = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
-                        else:
-                            st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"second_round"] \
-                            = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
-                elif st.session_state["pattern"] == "dream" or st.session_state["pattern"] == "orion":
+            _player_id = re.match(r"(https://keirin.netkeiba.com/db/profile/\?id=)?(\d{5})",row["3"]).group(2)
+
+            def check_dq():
+                if chaku == "欠":
+                    st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"dq"] = 1
+                elif chaku == "失":
+                    st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"dq"] = 2
+
+            def record():
+                check_dq()
+                if st.session_state["pattern"] == "ドリーム" or st.session_state["pattern"] == "オリオン賞" or "1走目" in st.session_state["pattern"]:
                     st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"first_round"] \
                     = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
                 else:
-                    st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),st.session_state["pattern"]] \
+                    st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"second_round"] \
                     = st.session_state[f"""df_ptdef_{st.session_state["active_race"]}"""].loc[chaku,st.session_state["pattern"]]
+
+            if _player_id not in st.session_state["df_scores"]["player_id"].values:
+                st.toast(f"選手ID{_player_id}が見つかりませんでした",icon="👎")
+                continue
+            else: 
+                if st.session_state["active_race"] == "takamatsunomiya": #高松宮記念だけ東西で処理分ける
+                    if "東" in st.session_state["pattern"]:
+                        st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"shozoku"] = 1
+                    else:
+                        st.session_state["df_scores"].loc[st.session_state["df_scores"]["player_id"] == str(_player_id),"shozoku"] = 2
+                record()
                 st.toast("レース成績を読み込みました。",icon="👍")
     except:
         st.toast("レース成績読み込み失敗！コピペ失敗してるかも",icon="👎")
     finally:
         st.session_state["result"].clear()
         init_input_scores()
-
-# 選手IDと選手名の更新
-def update_plist():
-    st.session_state["input_players"] = input_players
-    st.session_state["input_players"].replace(r"https://keirin.netkeiba.com/db/profile/\?id=(\d+|[a-z]+)",r"\1",inplace=True,regex=True)
-    st.session_state["dl_pl_btn"] = False
 
 def update_election():
     try:
@@ -232,7 +256,7 @@ def update_election():
     finally:
         st.session_state["election"].clear()
         # 重複行を消す
-        st.session_state["df_scores"] = st.session_state["df_scores"].drop_duplicates()
+        st.session_state["df_scores"] = st.session_state["df_scores"].drop_duplicates(keep="first")
         # 選手IDがないデータはランキングに不要なので消す
         st.session_state["df_scores"] = st.session_state["df_scores"][st.session_state["df_scores"]["player_id"] != ""]
         init_input_election()
@@ -240,29 +264,37 @@ def update_election():
 
 
 # 入力エリアから選手リストへ情報更新
-def convert_plist():
-    update_plist()
-    st.session_state["df_scores"]["player_id"] = st.session_state["input_players"]["player_id"]
-    st.session_state["df_scores"]["player_name"] = st.session_state["input_players"]["player_name"]
-    st.session_state["df_scores"] = st.session_state["df_scores"].fillna({
-        "player_name":"",
-        "first_round":0,
-        "second_round":0,
-        "election_rank":0,
-        "shozoku":0,
-    }).astype({
-        "player_id":"str",
-        "player_name":"str",
-        "first_round":"int64",
-        "second_round":"int64",
-        "election_rank":"int64",
-        "shozoku":"int64",
-    })
-    # 重複行を消す
-    st.session_state["df_scores"] = st.session_state["df_scores"].drop_duplicates()
-    # 選手IDがないデータはランキングに不要なので消す
-    st.session_state["df_scores"] = st.session_state["df_scores"][st.session_state["df_scores"]["player_id"] != ""]
-    init_input_players()
+def update_plist():
+    try:
+        st.session_state["input_players"] = input_players
+        st.session_state["input_players"].replace(r"(https://keirin.netkeiba.com/db/profile/\?id=)?(\d{5})",r"\2",inplace=True,regex=True)
+        st.session_state["dl_pl_btn"] = False
+        st.session_state["df_scores"] = pd.concat([st.session_state["df_scores"],st.session_state["input_players"]])
+        st.session_state["df_scores"] = st.session_state["df_scores"].fillna({
+            "player_name":"",
+            "first_round":0,
+            "second_round":0,
+            "election_rank":0,
+            "shozoku":0,
+            "dq":0,
+        }).astype({
+            "player_id":"str",
+            "player_name":"str",
+            "first_round":"int64",
+            "second_round":"int64",
+            "election_rank":"int64",
+            "shozoku":"int64",
+            "dq":"int64",
+        })
+        st.toast("選手名と選手IDを読み込みました。",icon="👍")
+    except:
+        st.toast("選手名と選手ID更新失敗！入力形式に間違いがないか確認してください",icon="👎")
+    finally:
+        # 重複行を消す
+        st.session_state["df_scores"] = st.session_state["df_scores"].drop_duplicates(keep="first")
+        # 選手IDがないデータはランキングに不要なので消す
+        st.session_state["df_scores"] = st.session_state["df_scores"][st.session_state["df_scores"]["player_id"] != ""]
+        init_input_players()
 
 # 初期化実行
 if "df_scores" not in st.session_state:
@@ -297,18 +329,19 @@ if page == "ランキング":
         ###
 
         # ダウンロード用CSVの設定
-        csv = st.session_state["df_scores"].to_csv(columns=["player_id","player_name","shozoku","election_rank","first_round","second_round"],index=False).encode("cp932")
+        df_csv = st.session_state["df_scores"].sort_values(by="election_rank",ignore_index=True)
+        csv = df_csv.to_csv(columns=["player_id","player_name","shozoku","election_rank","first_round","second_round","dq"],index=False).encode("cp932")
         st.session_state["df_scores"]["total_score"] = st.session_state["df_scores"]["first_round"] + st.session_state["df_scores"]["second_round"]
         st.session_state["df_scores"]["image"] = st.session_state["df_scores"]["player_id"].map(lambda x:f"https://cdn.netkeiba.com/keirin/common/img/players/player_{x}.jpg")
 
-        df_east = st.session_state["df_scores"][st.session_state["df_scores"]["shozoku"] == 1]
-        df_west = st.session_state["df_scores"][st.session_state["df_scores"]["shozoku"] == 2]
+        df_east = st.session_state["df_scores"][(st.session_state["df_scores"]["shozoku"] == 1) & ((st.session_state["df_scores"]["total_score"] > 0) | (st.session_state["df_scores"]["dq"] > 0))]
+        df_west = st.session_state["df_scores"][(st.session_state["df_scores"]["shozoku"] == 2) & ((st.session_state["df_scores"]["total_score"] > 0) | (st.session_state["df_scores"]["dq"] > 0))]
 
-        rankings_east = df_east.sort_values(by=["total_score","election_rank"],ascending=[False,True],ignore_index=True)
-        rankings_west = df_west.sort_values(by=["total_score","election_rank"],ascending=[False,True],ignore_index=True)
+        rankings_east = df_east.sort_values(by=["dq","total_score","election_rank"],ascending=[True,False,True],ignore_index=True)
+        rankings_west = df_west.sort_values(by=["dq","total_score","election_rank"],ascending=[True,False,True],ignore_index=True)
 
-        rankings_east["rank"] = [f"""{int(x)+1}位""" for x in rankings_east.reset_index().index.tolist()]
-        rankings_west["rank"] = [f"""{int(x)+1}位""" for x in rankings_west.reset_index().index.tolist()]
+        rankings_east["rank"] = [int(x)+1 for x in rankings_east.reset_index().index.tolist()]
+        rankings_west["rank"] = [int(x)+1 for x in rankings_west.reset_index().index.tolist()]
 
         # ニュース用にそのままコピペする用の表
         news_ranking_east = rankings_east.rename(
@@ -345,7 +378,7 @@ if page == "ランキング":
             "|結果|":format_right,
         }
 
-        _df_east = news_ranking_east[["順位","選手名", "選考順位", "合計pt","結果"]].rename(
+        _df_east = news_ranking_east[["順位","選手名", "選考順位", "合計pt","結果","dq"]].rename(
             columns={
                 "順位":"|順位",
                 "選手名":"|選手名",
@@ -354,7 +387,7 @@ if page == "ランキング":
                 "結果":"|結果|"
                 },
             )
-        _df_west = news_ranking_west[["順位","選手名", "選考順位", "合計pt","結果"]].rename(
+        _df_west = news_ranking_west[["順位","選手名", "選考順位", "合計pt","結果","dq"]].rename(
             columns={
                 "順位":"|順位",
                 "選手名":"|選手名",
@@ -363,6 +396,22 @@ if page == "ランキング":
                 "結果":"|結果|"
                 },
             )
+        for x in st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_east"].keys():
+            _df_east.iloc[st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_east"][x][0]:st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_east"][x][1],[4]] = x
+        for x in st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_west"].keys():
+            _df_west.iloc[st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_west"][x][0]:st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_west"][x][1],[4]] = x
+        
+        _df_east.loc[_df_east["dq"] == 1,"|結果|"] = "欠場"
+        _df_east.loc[_df_east["dq"] == 2,"|結果|"] = "失格"
+        _df_west.loc[_df_west["dq"] == 1,"|結果|"] = "欠場"
+        _df_west.loc[_df_west["dq"] == 2,"|結果|"] = "失格"
+
+        _df_east["|選考<br>順位"] = _df_east["|選考<br>順位"].map(lambda x: f"補{x-900}" if x > 900 else x)
+        _df_west["|選考<br>順位"] = _df_west["|選考<br>順位"].map(lambda x: f"補{x-900}" if x > 900 else x)
+
+        _df_east.drop(columns="dq",inplace=True)
+        _df_west.drop(columns="dq",inplace=True)
+
         _df_header = pd.DataFrame(
             data=[[" :-: "," :-: "," :-: "," :-: "," :-: "],],
             columns=["|順位","|選手名", "|選考<br>順位", "|合計<br>pt","|結果|"],
@@ -379,7 +428,7 @@ if page == "ランキング":
         st.download_button(
             label="選手リストをダウンロードする",
             data=csv,
-            file_name=f"""{st.session_state["point_definition"][st.session_state["active_race"]]["title_jp"]} ランキング.csv""",
+            file_name=f"""{st.session_state["point_definition"][st.session_state["active_race"]]["title_jp"]}ランキング.csv""",
             mime="text/csv",
             key="dl_csv"
         )
@@ -390,15 +439,15 @@ if page == "ランキング":
             hide_index=True,
             use_container_width=True,
             column_config={
-                "rank":st.column_config.TextColumn("順位"),
+                "rank":st.column_config.TextColumn(label="順位"),
                 "image":st.column_config.ImageColumn(
                     "写真",
                     help="選手の顔写真"
                     ),
-                "player_name":st.column_config.TextColumn("選手名"),
-                "first_round":st.column_config.TextColumn("1走目"),
-                "second_round":st.column_config.TextColumn("2走目"),
-                "total_score":st.column_config.TextColumn("合計pt"),
+                "player_name":st.column_config.TextColumn(label="選手名"),
+                "first_round":st.column_config.TextColumn(label="1走目"),
+                "second_round":st.column_config.TextColumn(label="2走目"),
+                "total_score":st.column_config.TextColumn(label="合計pt"),
                 }
             )
         st.divider()
@@ -408,15 +457,15 @@ if page == "ランキング":
             hide_index=True,
             use_container_width=True,
             column_config={
-                "rank":st.column_config.TextColumn("順位"),
+                "rank":st.column_config.TextColumn(label="順位"),
                 "image":st.column_config.ImageColumn(
                     "写真",
                     help="選手の顔写真"
                     ),
-                "player_name":st.column_config.TextColumn("選手名"),
-                "first_round":st.column_config.TextColumn("1走目"),
-                "second_round":st.column_config.TextColumn("2走目"),
-                "total_score":st.column_config.TextColumn("合計pt"),
+                "player_name":st.column_config.TextColumn(label="選手名"),
+                "first_round":st.column_config.TextColumn(label="1走目"),
+                "second_round":st.column_config.TextColumn(label="2走目"),
+                "total_score":st.column_config.TextColumn(label="合計pt"),
                 }
             )
         st.divider()
@@ -441,13 +490,14 @@ if page == "ランキング":
         ###
 
         # ダウンロード用CSVの設定
-        csv = st.session_state["df_scores"].to_csv(columns=["player_id","player_name","shozoku","election_rank","first_round","second_round"],index=False).encode("cp932")
+        df_csv = st.session_state["df_scores"].sort_values(by="election_rank",ignore_index=True)
+        csv = df_csv.to_csv(columns=["player_id","player_name","shozoku","election_rank","first_round","second_round","dq"],index=False).encode("cp932")
 
         st.session_state["df_scores"]["total_score"] = st.session_state["df_scores"]["first_round"] + st.session_state["df_scores"]["second_round"]
         st.session_state["df_scores"]["image"] = st.session_state["df_scores"]["player_id"].map(lambda x:f"https://cdn.netkeiba.com/keirin/common/img/players/player_{x}.jpg")
 
-        rankings = st.session_state["df_scores"].sort_values(by=["total_score","election_rank"],ascending=[False,True],ignore_index=True)
-        rankings["rank"] = [f"""{int(x)+1}位""" for x in rankings.reset_index().index.tolist()]
+        rankings = st.session_state["df_scores"][(st.session_state["df_scores"]["total_score"] > 0) | (st.session_state["df_scores"]["dq"] > 0)].sort_values(by=["dq","total_score","election_rank"],ascending=[True,False,True],ignore_index=True)
+        rankings["rank"] = [int(x)+1 for x in rankings.reset_index().index.tolist()]
 
         # ニュース用にそのままコピペする用の表
         news_ranking = rankings.rename(
@@ -472,7 +522,7 @@ if page == "ランキング":
             "|合計<br>pt":format_left,
             "|結果|":format_right,
         }
-        _df = news_ranking[["順位","選手名", "選考順位", "合計pt","結果"]].rename(
+        _df = news_ranking[["順位","選手名", "選考順位", "合計pt","結果","dq"]].rename(
             columns={
                 "順位":"|順位",
                 "選手名":"|選手名",
@@ -481,6 +531,14 @@ if page == "ランキング":
                 "結果":"|結果|"
                 },
             )
+        for x in st.session_state["point_definition"][st.session_state["active_race"]]["qualifier"].keys():
+            _df.iloc[st.session_state["point_definition"][st.session_state["active_race"]]["qualifier"][x][0]:st.session_state["point_definition"][st.session_state["active_race"]]["qualifier"][x][1],[4]] = x
+        
+        _df.loc[_df["dq"] == 1,"|結果|"] = "欠場"
+        _df.loc[_df["dq"] == 2,"|結果|"] = "失格"
+        _df["|選考<br>順位"] = _df["|選考<br>順位"].map(lambda x: f"補{x-900}" if x > 900 else x)
+        _df = _df.drop(columns="dq")
+
         _df_header = pd.DataFrame(
             data=[[" :-: "," :-: "," :-: "," :-: "," :-: "],],
             columns=["|順位","|選手名", "|選考<br>順位", "|合計<br>pt","|結果|"],
@@ -505,15 +563,12 @@ if page == "ランキング":
             hide_index=True,
             use_container_width=True,
             column_config={
-                "rank":st.column_config.TextColumn("順位"),
-                "image":st.column_config.ImageColumn(
-                    "写真",
-                    help="選手の顔写真"
-                    ),
-                "player_name":st.column_config.TextColumn("選手名"),
-                "first_round":st.column_config.TextColumn("1走目"),
-                "second_round":st.column_config.TextColumn("2走目"),
-                "total_score":st.column_config.TextColumn("合計pt"),
+                "rank":st.column_config.TextColumn(label="順位"),
+                "image":st.column_config.ImageColumn(label="写真",help="選手の顔写真"),
+                "player_name":st.column_config.TextColumn(label="選手名"),
+                "first_round":st.column_config.TextColumn(label="1走目"),
+                "second_round":st.column_config.TextColumn(label="2走目"),
+                "total_score":st.column_config.TextColumn(label="合計pt"),
                 }
             )
         st.divider()
@@ -541,10 +596,16 @@ elif page == "選手リスト管理":
         data=st.session_state["input_players"],
         key="eee_players",
         num_rows="fixed",
+        hide_index=True,
+        column_config={
+            "player_name":st.column_config.TextColumn(label="選手名"),
+            "player_id":st.column_config.TextColumn(label="ID or URL")
+        },
+        use_container_width=True
     )
     st.button(
         label="選手IDを更新する",
-        on_click=convert_plist,
+        on_click=update_plist,
         key="cvt"
     )
     st.divider()
@@ -553,6 +614,12 @@ elif page == "選手リスト管理":
         data=st.session_state["input_election"],
         key="election",
         num_rows="fixed",
+        hide_index=True,
+        column_config={
+            "player_name":st.column_config.TextColumn(label="選手名"),
+            "election_rank":st.column_config.TextColumn(label="選考順位")
+        },
+        use_container_width=True
     )
     st.button("選考順位を一括登録する",on_click=update_election,key="xxx")
 
@@ -568,6 +635,14 @@ elif page == "成績入力":
         data=st.session_state["input_scores"],
         key="result",
         num_rows="fixed",
+        hide_index=True,
+        column_config={
+            "0":st.column_config.TextColumn(label="着順"),
+            "1":st.column_config.TextColumn(label="枠番"),
+            "2":st.column_config.TextColumn(label="車番"),
+            "3":st.column_config.TextColumn(label="ID or URL"),
+        },
+        use_container_width=True,
     )
     update_scores_button = st.button("成績を更新する", on_click=update_scores)
 
