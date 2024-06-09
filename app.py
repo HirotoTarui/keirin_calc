@@ -396,10 +396,12 @@ if page == "ランキング":
                 "結果":"|結果|"
                 },
             )
-        for x in st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_east"].keys():
-            _df_east.iloc[st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_east"][x][0]:st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_east"][x][1],[4]] = x
-        for x in st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_west"].keys():
-            _df_west.iloc[st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_west"][x][0]:st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_west"][x][1],[4]] = x
+        
+        # 結果列に勝ち進むレースを規定の順位に応じて入力
+        # for x in st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_east"].keys():
+        #     _df_east.iloc[st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_east"][x][0]:st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_east"][x][1],[4]] = x
+        # for x in st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_west"].keys():
+        #     _df_west.iloc[st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_west"][x][0]:st.session_state["point_definition"][st.session_state["active_race"]]["qualifier_west"][x][1],[4]] = x
         
         _df_east.loc[_df_east["dq"] == 1,"|結果|"] = "欠場"
         _df_east.loc[_df_east["dq"] == 2,"|結果|"] = "失格"
@@ -531,8 +533,10 @@ if page == "ランキング":
                 "結果":"|結果|"
                 },
             )
-        for x in st.session_state["point_definition"][st.session_state["active_race"]]["qualifier"].keys():
-            _df.iloc[st.session_state["point_definition"][st.session_state["active_race"]]["qualifier"][x][0]:st.session_state["point_definition"][st.session_state["active_race"]]["qualifier"][x][1],[4]] = x
+        
+        # 結果列に勝ち進むレースを規定の順位に応じて入力
+        # for x in st.session_state["point_definition"][st.session_state["active_race"]]["qualifier"].keys():
+        #     _df.iloc[st.session_state["point_definition"][st.session_state["active_race"]]["qualifier"][x][0]:st.session_state["point_definition"][st.session_state["active_race"]]["qualifier"][x][1],[4]] = x
         
         _df.loc[_df["dq"] == 1,"|結果|"] = "欠場"
         _df.loc[_df["dq"] == 2,"|結果|"] = "失格"
